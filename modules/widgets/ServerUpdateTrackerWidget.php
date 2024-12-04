@@ -25,6 +25,11 @@ class ServerUpdateTrackerWidget extends AbstractWidget
 
     public function generateOutput($data)
     {
+        // Handle AJAX request and only return the widget's content
+        if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
+            return $this->generateTable($data);
+        }
+
         // Add link to the module page
         $moduleLink = 'addonmodules.php?module=ServerUpdateTracker';
 
