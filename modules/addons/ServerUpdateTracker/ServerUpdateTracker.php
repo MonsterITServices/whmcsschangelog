@@ -56,15 +56,8 @@ function ServerUpdateTracker_output($vars)
             $query = "INSERT INTO `mod_server_updates` (`server_name`, `ip_address`, `update_log`, `last_updated`, `added_by`) 
                       VALUES ('$serverName', '$ipAddress', '$updateLog', NOW(), '$adminUsername')";
             full_query($query);
-            echo '<div class="successbox">Server/Website added successfully!</div>';
+            echo '<div class="alert alert-success">Server/Website added successfully!</div>';
         }
-    }
-
-    // Handle deletion of a record
-    if (isset($_GET['delete'])) {
-        $deleteId = intval($_GET['delete']);
-        full_query("DELETE FROM `mod_server_updates` WHERE `id` = $deleteId");
-        echo '<div class="infobox">Record deleted successfully!</div>';
     }
 
     // Fetch all unique server names for the dropdown
@@ -80,59 +73,75 @@ function ServerUpdateTracker_output($vars)
     if ($filter) {
         $query .= " WHERE `server_name` = '$filter'";
     }
-    $query .= " ORDER BY `server_name` ASC";
+    $query .= " ORDER BY `last_updated` DESC";
     $results = full_query($query);
 
-    // Display form for adding new entries
-    echo '<form method="post" action="">
-            <h2>Add Server/Website</h2>
-            <label>Server/Website Name:</label><br>
-            <input type="text" name="server_name" required><br><br>
-            <label>IP Address (Optional):</label><br>
-            <input type="text" name="ip_address"><br><br>
-            <label>Update Log:</label><br>
-            <textarea name="update_log" required></textarea><br><br>
-            <input type="submit" name="addServer" value="Add Server/Website">
-          </form>';
+    // Add New Entry Form
+    echo '<div class="container-fluid">';
+    echo '<div class="row mb-4">
+            <div class="col-12">
+                <h2 class="text-primary">Add New Server/Website</h2>
+                <form method="post" class="card shadow-sm p-4">
+                    <div class="mb-3">
+                        <label for="server_name" class="form-label">Server/Website Name:</label>
+                        <input type="text" class="form-control" id="server_name" name="server_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="ip_address" class="form-label">IP Address (Optional):</label>
+                        <input type="text" class="form-control" id="ip_address" name="ip_address">
+                    </div>
+                    <div class="mb-3">
+                        <label for="update_log" class="form-label">Update Log:</label>
+                        <textarea class="form-control" id="update_log" name="update_log" rows="3" required></textarea>
+                    </div>
+                    <button type="submit" name="addServer" class="btn btn-success" style="padding: 5px 10px;">Add Server/Website</button>
+                </form>
+            </div>
+        </div>';
 
-    // Display filtering dropdown
-    echo '<form method="post" action="">
-            <h2>Filter by Server/Website</h2>
-            <label>Select Server/Website:</label><br>
-            <select name="filter_server">
-                <option value="">-- Show All --</option>';
+    // Filter Dropdown
+    echo '<div class="row mb-4">
+            <div class="col-12">
+                <form method="post" class="d-flex align-items-center">
+                    <select name="filter_server" class="form-select me-2">
+                        <option value="">-- Show All --</option>';
     foreach ($serverNames as $name) {
         $selected = $filter === $name ? 'selected' : '';
         echo "<option value=\"$name\" $selected>$name</option>";
     }
-    echo '  </select>
-            <br><br>
-            <input type="submit" value="Filter">
-          </form>';
+    echo '      </select>
+                    <button type="submit" class="btn btn-primary" style="padding: 5px 10px;">Filter</button>
+                </form>
+            </div>
+        </div>';
 
-    // Display table
-    echo '<h2>Tracked Servers/Websites</h2>';
-    echo '<table border="1" cellspacing="0" cellpadding="5">
-            <tr>
-                <th>Server/Website Name</th>
-                <th>IP Address</th>
-                <th>Update Log</th>
-                <th>Last Updated</th>
-                <th>Added By</th>
-                <th>Actions</th>
-            </tr>';
+    // Display Table
+    echo '<div class="row">
+            <div class="col-12">
+                <h2 class="text-primary">Tracked Servers/Websites</h2>
+                <table class="table table-hover table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Server/Website Name</th>
+                            <th>IP Address</th>
+                            <th>Update Log</th>
+                            <th>Last Updated</th>
+                            <th>Added By</th>
+                        </tr>
+                    </thead>
+                    <tbody>';
     while ($row = mysql_fetch_assoc($results)) {
         echo '<tr>
                 <td>' . htmlspecialchars($row['server_name']) . '</td>
-                <td>' . ($row['ip_address'] ?: 'Not Provided') . '</td>
+                <td>' . ($row['ip_address'] ?: '<em class="text-muted">Not Provided</em>') . '</td>
                 <td>' . nl2br(htmlspecialchars($row['update_log'])) . '</td>
                 <td>' . htmlspecialchars($row['last_updated']) . '</td>
                 <td>' . htmlspecialchars($row['added_by']) . '</td>
-                <td>
-                    <a href="?module=ServerUpdateTracker&delete=' . $row['id'] . '" onclick="return confirm(\'Are you sure you want to delete this record?\')">Delete</a>
-                </td>
               </tr>';
     }
-    echo '</table>';
+    echo '      </tbody>
+                </table>
+            </div>
+        </div>
+    </div>';
 }
-?>
