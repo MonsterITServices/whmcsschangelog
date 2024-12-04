@@ -1,5 +1,7 @@
 <?php
-
+ // version 1.6
+ //changed data entry shown
+ 
 namespace WHMCS\Module\Widget;
 
 use WHMCS\Database\Capsule;
@@ -25,11 +27,6 @@ class ServerUpdateTrackerWidget extends AbstractWidget
 
     public function generateOutput($data)
     {
-        // Handle AJAX request and only return the widget's content
-        if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
-            return $this->generateTable($data);
-        }
-
         // Add link to the module page
         $moduleLink = 'addonmodules.php?module=ServerUpdateTracker';
 
@@ -46,8 +43,13 @@ class ServerUpdateTrackerWidget extends AbstractWidget
         $output .= <<<HTML
 <script>
     function refreshServerUpdateTracker() {
-        fetch('index.php?widget=ServerUpdateTrackerWidget&ajax=1')
-            .then(response => response.text())
+        fetch('widget.php?widget=ServerUpdateTrackerWidget&ajax=1')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.text();
+            })
             .then(data => {
                 document.getElementById('server-update-tracker-content').innerHTML = data;
             })
@@ -128,7 +130,7 @@ HTML;
 
     public function getAjaxContent()
     {
-        // Fetch and return updated data for AJAX requests
+        // Ensure only the table is returned during an AJAX request
         $data = $this->getData();
         return $this->generateTable($data);
     }
