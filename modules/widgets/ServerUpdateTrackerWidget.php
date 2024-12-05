@@ -30,7 +30,7 @@ class ServerUpdateTrackerWidget extends AbstractWidget
         // Add link to the module page
         $moduleLink = 'addonmodules.php?module=ServerUpdateTracker';
 
-        $output = '<div class="widget-header" style="margin-bottom: 15px;">';
+        $output = '<div class="widget-header" style="margin: 15px;">';
         $output .= '<a href="' . $moduleLink . '" class="btn btn-primary" style="background-color: #337ab7; border-color: #2e6da4;">Add New Entry</a>';
         $output .= '</div>';
 
@@ -65,68 +65,74 @@ HTML;
     }
 
     public function generateTable($data)
-    {
-        // Styling for the table
-        $output = '<style>
-            .server-update-tracker-table {
-                width: 100%;
-                border-collapse: collapse;
-            }
-            .server-update-tracker-table th {
-                background-color: #f7f7f7;
-                padding: 10px;
-                text-align: left;
-                border-bottom: 2px solid #ddd;
-                color: #333;
-            }
-            .server-update-tracker-table td {
-                padding: 10px;
-                border-bottom: 1px solid #ddd;
-            }
-            .server-update-tracker-table tr:hover {
-                background-color: #f1f1f1;
-            }
-            .server-update-tracker-table td:first-child {
-                font-weight: bold;
-            }
-            .server-update-tracker-table .not-provided {
-                color: #999;
-                font-style: italic;
-            }
-            .server-update-tracker-table .last-updated {
-                color: #337ab7;
-            }
-        </style>';
-
-        // Table HTML
-        $output .= '<table class="server-update-tracker-table">
-            <thead>
-                <tr>
-                    <th>Server/Website</th>
-                    <th>IP Address</th>
-                    <th>Update Log</th>
-                    <th>Last Updated</th>
-                </tr>
-            </thead>
-            <tbody>';
-
-        if (empty($data)) {
-            $output .= '<tr><td colspan="4" style="text-align: center; font-style: italic; color: #999;">No updates available.</td></tr>';
-        } else {
-            foreach ($data as $update) {
-                $output .= '<tr>
-                    <td>' . htmlspecialchars($update->server_name) . '</td>
-                    <td>' . ($update->ip_address ? htmlspecialchars($update->ip_address) : '<span class="not-provided">Not Provided</span>') . '</td>
-                    <td>' . nl2br(htmlspecialchars($update->update_log)) . '</td>
-                    <td class="last-updated">' . htmlspecialchars($update->last_updated) . '</td>
-                </tr>';
-            }
+{
+    // Styling for the table
+    $output = '<style>
+        .server-update-tracker-table {
+            width: 100%;
+            border-collapse: collapse;
         }
+        .server-update-tracker-table th {
+            background-color: #f7f7f7;
+            padding: 10px;
+            text-align: left;
+            border-bottom: 2px solid #ddd;
+            color: #333;
+        }
+        .server-update-tracker-table td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        .server-update-tracker-table tr:hover {
+            background-color: #f1f1f1;
+        }
+        .server-update-tracker-table td:first-child {
+            font-weight: bold;
+        }
+        .server-update-tracker-table .not-provided {
+            color: #999;
+            font-style: italic;
+        }
+        .server-update-tracker-table .last-updated {
+            color: #337ab7;
+        }
+    </style>';
 
-        $output .= '</tbody></table>';
+    // Table HTML
+    $output .= '<table class="server-update-tracker-table">
+        <thead>
+            <tr>
+                <th>Server/Website</th>
+                <th>IP Address</th>
+                <th>Update Log</th>
+                <th>Last Updated</th>
+                <th>Added By</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>';
 
-        return $output;
+    if (empty($data)) {
+        $output .= '<tr><td colspan="6" style="text-align: center; font-style: italic; color: #999;">No updates available.</td></tr>';
+    } else {
+        foreach ($data as $update) {
+            $output .= '<tr>
+                <td>' . htmlspecialchars($update->server_name) . '</td>
+                <td>' . ($update->ip_address ? htmlspecialchars($update->ip_address) : '<span class="not-provided">Not Provided</span>') . '</td>
+                <td>' . nl2br(htmlspecialchars($update->update_log)) . '</td>
+                <td class="last-updated">' . htmlspecialchars($update->last_updated) . '</td>
+                <td>' . htmlspecialchars($update->added_by) . '</td>
+                <td>
+                    <a href="?module=ServerUpdateTracker&delete=' . $update->id . '" class="btn btn-danger btn-sm" onclick="return confirm(\'Are you sure you want to delete this entry?\')">Delete</a>
+                </td>
+            </tr>';
+        }
     }
+
+    $output .= '</tbody></table>';
+
+    return $output;
+}
 
     public function getAjaxContent()
     {

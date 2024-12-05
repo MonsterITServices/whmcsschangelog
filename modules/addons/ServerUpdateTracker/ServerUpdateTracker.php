@@ -4,12 +4,14 @@ if (!defined("WHMCS")) {
     die("This file cannot be accessed directly");
 }
 
+use WHMCS\User\Admin;
+
 function ServerUpdateTracker_config()
 {
     return [
         "name" => "Server Update Tracker",
         "description" => "A custom module to monitor and log updates for customer servers and websites.",
-        "version" => "1.2",
+        "version" => "1.6",
         "author" => "Monster IT Services Ltd",
         "fields" => [],
     ];
@@ -44,7 +46,7 @@ function ServerUpdateTracker_deactivate()
 
 function ServerUpdateTracker_output($vars)
 {
-    $adminUsername = $_SESSION['adminusername']; // Get the WHMCS admin username
+    $adminUsername = Admin::getAuthenticatedUser()['username']; // Correctly retrieve WHMCS admin username
 
     // Handle form submission for adding a server
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -55,9 +57,20 @@ function ServerUpdateTracker_output($vars)
 
             $query = "INSERT INTO `mod_server_updates` (`server_name`, `ip_address`, `update_log`, `last_updated`, `added_by`) 
                       VALUES ('$serverName', '$ipAddress', '$updateLog', NOW(), '$adminUsername')";
-            full_query($query);
-            echo '<div class="alert alert-success">Server/Website added successfully!</div>';
+            if (!full_query($query)) {
+                echo '<div class="alert alert-danger">Failed to add entry: ' . mysql_error() . '</div>';
+            } else {
+                echo '<div class="alert alert-success">Server/Website added successfully!</div>';
+            }
         }
+    }
+
+    // Handle deletion of an entry
+    if (isset($_GET['delete'])) {
+        $deleteId = intval($_GET['delete']);
+        $deleteQuery = "DELETE FROM `mod_server_updates` WHERE `id` = $deleteId";
+        full_query($deleteQuery);
+        echo '<div class="alert alert-success">Entry deleted successfully!</div>';
     }
 
     // Fetch all unique server names for the dropdown
@@ -94,7 +107,7 @@ function ServerUpdateTracker_output($vars)
                         <label for="update_log" class="form-label">Update Log:</label>
                         <textarea class="form-control" id="update_log" name="update_log" rows="3" required></textarea>
                     </div>
-                    <button type="submit" name="addServer" class="btn btn-success" style="padding: 5px 10px;">Add Server/Website</button>
+                    <button type="submit" name="addServer" class="btn btn-success">Add Server/Website</button>
                 </form>
             </div>
         </div>';
@@ -110,7 +123,7 @@ function ServerUpdateTracker_output($vars)
         echo "<option value=\"$name\" $selected>$name</option>";
     }
     echo '      </select>
-                    <button type="submit" class="btn btn-primary" style="padding: 5px 10px;">Filter</button>
+                    <button type="submit" class="btn btn-primary">Filter</button>
                 </form>
             </div>
         </div>';
@@ -127,6 +140,7 @@ function ServerUpdateTracker_output($vars)
                             <th>Update Log</th>
                             <th>Last Updated</th>
                             <th>Added By</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>';
@@ -137,6 +151,9 @@ function ServerUpdateTracker_output($vars)
                 <td>' . nl2br(htmlspecialchars($row['update_log'])) . '</td>
                 <td>' . htmlspecialchars($row['last_updated']) . '</td>
                 <td>' . htmlspecialchars($row['added_by']) . '</td>
+                <td>
+                    <a href="?module=ServerUpdateTracker&delete=' . $row['id'] . '" class="btn btn-danger btn-sm" onclick="return confirm(\'Are you sure you want to delete this entry?\')">Delete</a>
+                </td>
               </tr>';
     }
     echo '      </tbody>
