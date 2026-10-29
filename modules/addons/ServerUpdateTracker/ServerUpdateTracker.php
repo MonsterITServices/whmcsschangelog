@@ -11,7 +11,7 @@ function ServerUpdateTracker_config()
     return [
         "name" => "Server Update Tracker",
         "description" => "A custom module to monitor and log updates for customer servers and websites.",
-        "version" => "1.7",
+        "version" => "1.8",
         "author" => "Monster IT Services Ltd",
         "fields" => [],
     ];
@@ -54,9 +54,10 @@ function ServerUpdateTracker_output($vars)
             $serverName = mysql_real_escape_string($_POST['server_name']);
             $updateLog = mysql_real_escape_string($_POST['update_log']);
 
-            // Insert NULL for ip_address to prevent breaking the existing DB table schema
+            // Duplicate the $serverName into the ip_address field to bypass the NOT NULL constraint
             $query = "INSERT INTO `mod_server_updates` (`server_name`, `ip_address`, `update_log`, `last_updated`, `added_by`) 
-                      VALUES ('$serverName', NULL, '$updateLog', NOW(), '$adminUsername')";
+                      VALUES ('$serverName', '$serverName', '$updateLog', NOW(), '$adminUsername')";
+            
             if (!full_query($query)) {
                 echo '<div class="alert alert-danger">Failed to add entry: ' . mysql_error() . '</div>';
             } else {
@@ -124,9 +125,10 @@ function ServerUpdateTracker_output($vars)
                         </thead>
                         <tbody>';
     while ($row = mysql_fetch_assoc($results)) {
-        // Merge legacy IP data into the display so you don't lose visibility of older entries
         $displayName = htmlspecialchars($row['server_name']);
-        if (!empty($row['ip_address'])) {
+        
+        // Only append the IP address if it is not empty and does not exactly match the server name
+        if (!empty($row['ip_address']) && $row['ip_address'] !== $row['server_name']) {
             $displayName .= ' - ' . htmlspecialchars($row['ip_address']);
         }
 
