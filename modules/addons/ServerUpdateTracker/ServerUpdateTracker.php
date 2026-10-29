@@ -11,7 +11,7 @@ function ServerUpdateTracker_config()
     return [
         "name" => "Server Update Tracker",
         "description" => "A custom module to monitor and log updates for customer servers and websites.",
-        "version" => "1.6",
+        "version" => "1.7",
         "author" => "Monster IT Services Ltd",
         "fields" => [],
     ];
@@ -46,21 +46,21 @@ function ServerUpdateTracker_deactivate()
 
 function ServerUpdateTracker_output($vars)
 {
-    $adminUsername = Admin::getAuthenticatedUser()['username']; // Correctly retrieve WHMCS admin username
+    $adminUsername = Admin::getAuthenticatedUser()['username']; 
 
     // Handle form submission for adding a server
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($_POST['addServer'])) {
             $serverName = mysql_real_escape_string($_POST['server_name']);
-            $ipAddress = !empty($_POST['ip_address']) ? mysql_real_escape_string($_POST['ip_address']) : null;
             $updateLog = mysql_real_escape_string($_POST['update_log']);
 
+            // Insert NULL for ip_address to prevent breaking the existing DB table schema
             $query = "INSERT INTO `mod_server_updates` (`server_name`, `ip_address`, `update_log`, `last_updated`, `added_by`) 
-                      VALUES ('$serverName', '$ipAddress', '$updateLog', NOW(), '$adminUsername')";
+                      VALUES ('$serverName', NULL, '$updateLog', NOW(), '$adminUsername')";
             if (!full_query($query)) {
                 echo '<div class="alert alert-danger">Failed to add entry: ' . mysql_error() . '</div>';
             } else {
-                echo '<div class="alert alert-success">Server/Website added successfully!</div>';
+                echo '<div class="alert alert-success">Server/Website/IP added successfully!</div>';
             }
         }
     }
@@ -73,57 +73,36 @@ function ServerUpdateTracker_output($vars)
         echo '<div class="alert alert-success">Entry deleted successfully!</div>';
     }
 
-    // Fetch all unique server names for the dropdown
-    $dropdownResults = full_query("SELECT DISTINCT `server_name` FROM `mod_server_updates`");
-    $serverNames = [];
-    while ($row = mysql_fetch_assoc($dropdownResults)) {
-        $serverNames[] = $row['server_name'];
-    }
-
-    // Filtering logic
-    $filter = isset($_POST['filter_server']) ? mysql_real_escape_string($_POST['filter_server']) : null;
-    $query = "SELECT * FROM `mod_server_updates`";
-    if ($filter) {
-        $query .= " WHERE `server_name` = '$filter'";
-    }
-    $query .= " ORDER BY `last_updated` DESC";
+    // Fetch all records - Pagination and filtering will be handled by DataTables
+    $query = "SELECT * FROM `mod_server_updates` ORDER BY `last_updated` DESC";
     $results = full_query($query);
 
+    // Inject DataTables and Bootstrap 5 CSS/JS to guarantee styling and responsiveness
+    echo '
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css"/>
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/responsive/2.2.9/css/responsive.bootstrap5.min.css"/>
+    <script type="text/javascript" src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    <script type="text/javascript" src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+    <script type="text/javascript" src="https://cdn.datatables.net/responsive/2.2.9/js/dataTables.responsive.min.js"></script>
+    <script type="text/javascript" src="https://cdn.datatables.net/responsive/2.2.9/js/responsive.bootstrap5.min.js"></script>
+    ';
+
+    echo '<div class="container-fluid" style="margin-top: 20px;">';
+    
     // Add New Entry Form
-    echo '<div class="container-fluid">';
     echo '<div class="row mb-4">
             <div class="col-12">
-                <h2 class="text-primary">Add New Server/Website</h2>
+                <h2 class="text-primary">Add New Entry</h2>
                 <form method="post" class="card shadow-sm p-4">
                     <div class="mb-3">
-                        <label for="server_name" class="form-label">Server/Website Name:</label>
+                        <label for="server_name" class="form-label">Server/Website/IP:</label>
                         <input type="text" class="form-control" id="server_name" name="server_name" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="ip_address" class="form-label">IP Address (Optional):</label>
-                        <input type="text" class="form-control" id="ip_address" name="ip_address">
                     </div>
                     <div class="mb-3">
                         <label for="update_log" class="form-label">Update Log:</label>
                         <textarea class="form-control" id="update_log" name="update_log" rows="3" required></textarea>
                     </div>
-                    <button type="submit" name="addServer" class="btn btn-success">Add Server/Website</button>
-                </form>
-            </div>
-        </div>';
-
-    // Filter Dropdown
-    echo '<div class="row mb-4">
-            <div class="col-12">
-                <form method="post" class="d-flex align-items-center">
-                    <select name="filter_server" class="form-select me-2">
-                        <option value="">-- Show All --</option>';
-    foreach ($serverNames as $name) {
-        $selected = $filter === $name ? 'selected' : '';
-        echo "<option value=\"$name\" $selected>$name</option>";
-    }
-    echo '      </select>
-                    <button type="submit" class="btn btn-primary">Filter</button>
+                    <button type="submit" name="addServer" class="btn btn-success">Add Entry</button>
                 </form>
             </div>
         </div>';
@@ -132,22 +111,27 @@ function ServerUpdateTracker_output($vars)
     echo '<div class="row">
             <div class="col-12">
                 <h2 class="text-primary">Tracked Servers/Websites</h2>
-                <table class="table table-hover table-bordered">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Server/Website Name</th>
-                            <th>IP Address</th>
-                            <th>Update Log</th>
-                            <th>Last Updated</th>
-                            <th>Added By</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>';
+                <div class="table-responsive">
+                    <table id="serverUpdatesTable" class="table table-hover table-bordered dt-responsive nowrap" style="width:100%">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Server/Website/IP</th>
+                                <th>Update Log</th>
+                                <th>Last Updated</th>
+                                <th>Added By</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>';
     while ($row = mysql_fetch_assoc($results)) {
+        // Merge legacy IP data into the display so you don't lose visibility of older entries
+        $displayName = htmlspecialchars($row['server_name']);
+        if (!empty($row['ip_address'])) {
+            $displayName .= ' - ' . htmlspecialchars($row['ip_address']);
+        }
+
         echo '<tr>
-                <td>' . htmlspecialchars($row['server_name']) . '</td>
-                <td>' . ($row['ip_address'] ?: '<em class="text-muted">Not Provided</em>') . '</td>
+                <td>' . $displayName . '</td>
                 <td>' . nl2br(htmlspecialchars($row['update_log'])) . '</td>
                 <td>' . htmlspecialchars($row['last_updated']) . '</td>
                 <td>' . htmlspecialchars($row['added_by']) . '</td>
@@ -157,8 +141,28 @@ function ServerUpdateTracker_output($vars)
               </tr>';
     }
     echo '      </tbody>
-                </table>
+                    </table>
+                </div>
             </div>
         </div>
     </div>';
+
+    // Initialize the DataTable script
+    echo '
+    <script>
+        $(document).ready(function() {
+            if (!$.fn.DataTable.isDataTable("#serverUpdatesTable")) {
+                $("#serverUpdatesTable").DataTable({
+                    responsive: true,
+                    pageLength: 10,
+                    lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]],
+                    order: [[2, "desc"]], // Automatically order by Last Updated
+                    language: {
+                        search: "Filter entries:"
+                    }
+                });
+            }
+        });
+    </script>
+    ';
 }
