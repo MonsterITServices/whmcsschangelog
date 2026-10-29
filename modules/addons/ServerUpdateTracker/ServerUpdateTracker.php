@@ -5,6 +5,7 @@ if (!defined("WHMCS")) {
 }
 
 use WHMCS\User\Admin;
+use WHMCS\Database\Capsule;
 
 function ServerUpdateTracker_config()
 {
@@ -48,37 +49,41 @@ function ServerUpdateTracker_output($vars)
 {
     $adminUsername = Admin::getAuthenticatedUser()['username']; 
 
-    // Handle form submission for adding a server
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        if (isset($_POST['addServer'])) {
-            $serverName = mysql_real_escape_string($_POST['server_name']);
-            $updateLog = mysql_real_escape_string($_POST['update_log']);
+    // Handle form submission using WHMCS Capsule
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['addServer'])) {
+        try {
+            $serverName = trim($_POST['server_name']);
+            $updateLog = trim($_POST['update_log']);
 
-            // Duplicate the $serverName into the ip_address field to bypass the NOT NULL constraint
-            $query = "INSERT INTO `mod_server_updates` (`server_name`, `ip_address`, `update_log`, `last_updated`, `added_by`) 
-                      VALUES ('$serverName', '$serverName', '$updateLog', NOW(), '$adminUsername')";
+            Capsule::table('mod_server_updates')->insert([
+                'server_name' => $serverName,
+                'ip_address' => $serverName, // Duplicate to bypass NOT NULL constraint
+                'update_log' => $updateLog,
+                'last_updated' => Capsule::raw('NOW()'),
+                'added_by' => $adminUsername
+            ]);
             
-            if (!full_query($query)) {
-                echo '<div class="alert alert-danger">Failed to add entry: ' . mysql_error() . '</div>';
-            } else {
-                echo '<div class="alert alert-success">Server/Website/IP added successfully!</div>';
-            }
+            echo '<div class="alert alert-success">Server/Website/IP added successfully!</div>';
+        } catch (\Exception $e) {
+            echo '<div class="alert alert-danger">Failed to add entry: ' . htmlspecialchars($e->getMessage()) . '</div>';
         }
     }
 
-    // Handle deletion of an entry
+    // Handle deletion using WHMCS Capsule
     if (isset($_GET['delete'])) {
-        $deleteId = intval($_GET['delete']);
-        $deleteQuery = "DELETE FROM `mod_server_updates` WHERE `id` = $deleteId";
-        full_query($deleteQuery);
-        echo '<div class="alert alert-success">Entry deleted successfully!</div>';
+        try {
+            $deleteId = (int) $_GET['delete'];
+            Capsule::table('mod_server_updates')->where('id', $deleteId)->delete();
+            echo '<div class="alert alert-success">Entry deleted successfully!</div>';
+        } catch (\Exception $e) {
+            echo '<div class="alert alert-danger">Failed to delete entry: ' . htmlspecialchars($e->getMessage()) . '</div>';
+        }
     }
 
-    // Fetch all records - Pagination and filtering will be handled by DataTables
-    $query = "SELECT * FROM `mod_server_updates` ORDER BY `last_updated` DESC";
-    $results = full_query($query);
+    // Fetch all records using Capsule (returns object collection)
+    $results = Capsule::table('mod_server_updates')->orderBy('last_updated', 'desc')->get();
 
-    // Inject DataTables and Bootstrap 5 CSS/JS to guarantee styling and responsiveness
+    // Inject DataTables and Bootstrap 5 CSS/JS
     echo '
     <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css"/>
     <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/responsive/2.2.9/css/responsive.bootstrap5.min.css"/>
@@ -90,11 +95,11 @@ function ServerUpdateTracker_output($vars)
 
     echo '<div class="container-fluid" style="margin-top: 20px;">';
     
-    // Add New Entry Form
+    // Explicit action attribute added to form to prevent postback timeouts
     echo '<div class="row mb-4">
             <div class="col-12">
                 <h2 class="text-primary">Add New Entry</h2>
-                <form method="post" class="card shadow-sm p-4">
+                <form method="post" action="addonmodules.php?module=ServerUpdateTracker" class="card shadow-sm p-4">
                     <div class="mb-3">
                         <label for="server_name" class="form-label">Server/Website/IP:</label>
                         <input type="text" class="form-control" id="server_name" name="server_name" required>
@@ -124,24 +129,26 @@ function ServerUpdateTracker_output($vars)
                             </tr>
                         </thead>
                         <tbody>';
-    while ($row = mysql_fetch_assoc($results)) {
-        $displayName = htmlspecialchars($row['server_name']);
+    
+    foreach ($results as $row) {
+        $displayName = htmlspecialchars($row->server_name);
         
-        // Only append the IP address if it is not empty and does not exactly match the server name
-        if (!empty($row['ip_address']) && $row['ip_address'] !== $row['server_name']) {
-            $displayName .= ' - ' . htmlspecialchars($row['ip_address']);
+        // Append legacy IPs if they exist and are distinct
+        if (!empty($row->ip_address) && $row->ip_address !== $row->server_name) {
+            $displayName .= ' - ' . htmlspecialchars($row->ip_address);
         }
 
         echo '<tr>
                 <td>' . $displayName . '</td>
-                <td>' . nl2br(htmlspecialchars($row['update_log'])) . '</td>
-                <td>' . htmlspecialchars($row['last_updated']) . '</td>
-                <td>' . htmlspecialchars($row['added_by']) . '</td>
+                <td>' . nl2br(htmlspecialchars($row->update_log)) . '</td>
+                <td>' . htmlspecialchars($row->last_updated) . '</td>
+                <td>' . htmlspecialchars($row->added_by) . '</td>
                 <td>
-                    <a href="?module=ServerUpdateTracker&delete=' . $row['id'] . '" class="btn btn-danger btn-sm" onclick="return confirm(\'Are you sure you want to delete this entry?\')">Delete</a>
+                    <a href="?module=ServerUpdateTracker&delete=' . $row->id . '" class="btn btn-danger btn-sm" onclick="return confirm(\'Are you sure you want to delete this entry?\')">Delete</a>
                 </td>
               </tr>';
     }
+    
     echo '      </tbody>
                     </table>
                 </div>
@@ -158,7 +165,7 @@ function ServerUpdateTracker_output($vars)
                     responsive: true,
                     pageLength: 10,
                     lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]],
-                    order: [[2, "desc"]], // Automatically order by Last Updated
+                    order: [[2, "desc"]], 
                     language: {
                         search: "Filter entries:"
                     }
